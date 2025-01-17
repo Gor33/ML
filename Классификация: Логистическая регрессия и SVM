@@ -1,0 +1,187 @@
+Цель: изучить применение модели логистической регрессии и метода опорных векторов в задаче бинарной классификации.
+
+Этапы работы:
+
+1. Получите данные и загрузите их в рабочую среду. (Jupyter Notebook или другую)
+
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LogisticRegression
+from sklearn.svm import SVC
+from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import StandardScaler
+import matplotlib.pyplot as plt
+
+df = pd.read_csv('adult.csv')
+df.head(5)
+
+https://drive.google.com/file/d/1laGKB_6NqxVRGAB9K8W_peCQVhIkZyu6/view?usp=drive_link
+
+2. Проведите первичный анализ:
+
+df.info()
+
+<class 'pandas.core.frame.DataFrame'>
+RangeIndex: 48842 entries, 0 to 48841
+Data columns (total 15 columns):
+ #   Column           Non-Null Count  Dtype 
+---  ------           --------------  ----- 
+ 0   age              48842 non-null  int64 
+ 1   workclass        48842 non-null  object
+ 2   fnlwgt           48842 non-null  int64 
+ 3   education        48842 non-null  object
+ 4   educational-num  48842 non-null  int64 
+ 5   marital-status   48842 non-null  object
+ 6   occupation       48842 non-null  object
+ 7   relationship     48842 non-null  object
+ 8   race             48842 non-null  object
+ 9   gender           48842 non-null  object
+ 10  capital-gain     48842 non-null  int64 
+ 11  capital-loss     48842 non-null  int64 
+ 12  hours-per-week   48842 non-null  int64 
+ 13  native-country   48842 non-null  object
+ 14  income           48842 non-null  object
+dtypes: int64(6), object(9)
+memory usage: 5.6+ MB
+
+Из полученных данных следует вывод, что датасет содержит множество различных признаков человека по результам данных переписи населения, в том числе доход income как целевой признак. 
+
+a) проверьте данные на пропуски. Удалите в случае обнаружения.
+* Предложите альтернативный способ работы с пропусками
+
+df.replace(['?'], [None], inplace=True)
+df.dropna(inplace=True)
+df.head(10)
+
+https://drive.google.com/file/d/1ajXj7e3dxLh3BeQUDaD-Xs1YJIvJ5WLN/view?usp=drive_link
+
+b) постройте 1-2 графика на выбор. Визуализация должна быть основана на исследуемых данных и быть полезной (из графика можно сделать вывод об особенностях датасета/класса/признака)
+
+plt.figure(figsize=(12,9))
+educations = df['education'].unique()
+X = df[['education']]
+X = X.replace({educations[idx]: idx for idx in range(educations.size)})
+Y = df[df.columns[-1]]
+plt.plot(X.values, Y.values, 'o')
+plt.show()
+
+Влияние образования на доход - показывает, что любой вариант образования может дать доход как выше нашего порога, так и ниже его, и такой график не даст нам существенной информации. 
+Значения видов образования приведены к набору кодирующих чисел.
+https://drive.google.com/file/d/1PoywJ18IXtqREFCs7jPyukRYXRg64Y_5/view?usp=drive_link
+
+plt.figure(figsize=(12,9))
+age = df['age']
+X = df[['age']]
+Y = df[df.columns[-1]]
+plt.plot(X.values, Y.values, 'o')
+plt.show()
+Влияние возраста на доход - показывает, что строго распределения дохода по возрастам нет.
+https://drive.google.com/file/d/192E9fvSzhWsGIV3RHWwrPlEjSkj0oWkO/view?usp=drive_link
+
+
+c) преобразуйте категориальные признаки
+
+selectedColumns_1 = df[['age', 'education', 'gender']]
+selectedColumns_2 = df.loc[:, df.columns != 'income']
+
+Перечень всех категориальных признаков в нашем датафрейме:
+
+cat_columns = ['workclass', 'education', 'marital-status', 'occupation', 'relationship', 'race', 'gender', 'native-country']
+
+X1 = pd.get_dummies(selectedColumns_1, columns=['education', 'gender'])
+X2 = pd.get_dummies(selectedColumns_2, columns=cat_columns)
+y1 = df[df.columns[-1]]
+y2 = df[df.columns[-1]]
+
+Преобразование целевого признака в бинарный вид
+
+y1.replace('>50K', 1, inplace=True)
+y2.replace('>50K', 1, inplace=True)
+y1.replace('<=50K', 0, inplace=True)
+y2.replace('<=50K', 0, inplace=True)
+
+3.Разделите выборку на обучающее и тестовое подмножество. 80% данных оставить на обучающее множество, 20% на тестовое.
+
+X1_train, X1_val, y1_train, y1_val = train_test_split(X1, y1, test_size=0.2, stratify=y1)
+X2_train, X2_val, y2_train, y2_val = train_test_split(X2, y2, test_size=0.2, stratify=y2)
+
+4.Обучите модели логистической регрессии и опорных векторов на обучающем множестве.
+
+Обучение модели логистической регрессии (ЛР) для первого варианта
+
+l_model_1 = LogisticRegression(max_iter=1000)
+l_model_1.fit(X1_train, y1_train)
+LogisticRegression(max_iter=1000)
+
+Обучение модели ЛР для второго варианта
+
+l_model_2 = LogisticRegression(max_iter=1000)
+l_model_2.fit(X2_train, y2_train)
+LogisticRegression(max_iter=1000)
+
+Обучение модели опорных векторов (ОВ) для первого варианта
+
+clf_model_1 = make_pipeline(StandardScaler(), SVC(gamma='auto'))
+clf_model_1.fit(X1_train, y1_train)
+Pipeline(steps=[('standardscaler', StandardScaler()),
+                ('svc', SVC(gamma='auto'))])
+
+Обучение модели ОВ для второго варианта
+
+clf_model_2 = make_pipeline(StandardScaler(), SVC(gamma='auto'))
+clf_model_2.fit(X2_train, y2_train)
+Pipeline(steps=[('standardscaler', StandardScaler()),
+                ('svc', SVC(gamma='auto'))])
+
+5.Для тестового множества предскажите уровень дохода и сравните с истинным значением, посчитав точность предсказания моделей. Для этого используйте встроенную функцию score.
+
+Для первого варианта логистической регрессии
+
+l_predictions_1 = l_model_1.predict(X1_val)
+l_model_1.score(X1_train, y1_train)
+0.7903087597092076
+l_model_1.score(X1_val, y1_val)
+0.7897180762852405
+
+Для втрого варианта логистической регрессии
+
+l_predictions_2 = l_model_2.predict(X2_val)
+l_model_2.score(X2_train, y2_train)
+0.7916908533045858
+l_model_2.score(X2_val, y2_val)
+0.7908236594803759
+
+Для первого варианта опорных векторов
+
+clf_predictions_1 = clf_model_1.predict(X1_val)
+clf_model_1.score(X1_train, y1_train)
+0.7978273488680654
+clf_model_1.score(X1_val, y1_val)
+0.7944720840243228
+
+Для втрого варианта опорных векторов
+
+clf_predictions_2 = clf_model_2.predict(X2_val)
+clf_model_2.score(X2_train, y2_train)
+0.8583906902175416
+clf_model_2.score(X2_val, y2_val)
+0.8424543946932007
+
+6.Сформулируйте выводы по проделанной работе:
+a) кратко опишите какие преобразования были сделаны с данными.
+-Было выполнено 4 варианта,  чтобы сравнить не только два метода между собой, но и оценить успешность применения каждого метода в зависимости от количества моделируемых исходных признаков
+- Увеличение количества исходных признаков модели логистической регрессиии не приводит к значительному улучшению предсказаний, 
+при условии изначального выбора для моделирования незначительного числа "удачных" признаков - действительно сильно влияющих на результат предсказания
+- Для опорных векторов - увеличение числа признаков улучшает предсказание, вывод - чувствительность этого метода при некоторых условиях может быть и лучше, чем у логистической регрессии
+- Результаты моделирования и предсказания сильно зависят от действительной реальности - то есть от предоставленного датасета признаков и целевого признака. 
+Все это - отражение действительно существующих взаимозависимостей этих показателей. И зависимости могут быть разными для разных объектов реальности. 
+
+b) cравните точность двух моделей.
+В процессе работы с данными были выполнены следующие операции - загрузка из файла в формате csv в датафрейм pandas, очистка датафрейма от пропусков, преобразование категориальных признаков методом get_dummies(), 
+преобразование целевого признака в бинарный вид, разделение выборок на два подмножества - тренировочное и проверочное
+
+c) напишите свое мнение, в полной ли мере модели справились с поставленной задачей.
+* Что по вашему мнению нужно сделать, чтобы улучшить результат?
+
+Результат предсказания, показали себя хорошо и с задачей модели справились. 
+
