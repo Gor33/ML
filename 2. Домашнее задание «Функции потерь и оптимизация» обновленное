@@ -1,0 +1,157 @@
+#**Задание**
+
+#Цель: изучить применение методов оптимизации для решения задачи классификации
+#Описание задания: В домашнем задании необходимо применить полученные знания в теории оптимизации и машинном обучении для реализации логистической регрессии.
+```
+from sklearn import datasets
+import numpy as np
+from datetime import datetime
+```
+#**1. Загрузите данные. Используйте датасет с ирисами. Его можно загрузить непосредственно из библиотеки Sklearn. В данных оставьте только 2 класса: Iris Versicolor, Iris Virginica.** 
+
+#Загружаем набор данных (датасет).
+```
+irises = datasets.load_iris()
+```
+#Выявляем перечень ключей в датасете: dict_keys(['data', 'target', 'frame', 'target_names', 'DESCR', 'feature_names', 'filename', 'data_module'])
+```
+keys = irises.keys()
+print(keys)
+```
+#Выявляем сорта ирисов в датасете: ['setosa' 'versicolor' 'virginica']
+```
+print(irises.target_names)
+```
+#Выявляем параметры (атрибуты) ирисов в датасете: ['sepal length (cm)', 'sepal width (cm)', 'petal length (cm)', 'petal width (cm)']
+```
+print(irises.feature_names)
+```
+#Произведем перекласификацию, чтобы в дальнейших расчетах оперировать 0 и 1
+```
+X = []
+Y = []
+for idx, item in enumerate(iris.target):
+    if item != 0:
+        X.append(iris.data[idx])
+        Y.append(item-1)
+
+X = np.asarray(X)
+Y = np.asarray(Y)
+print(Y)
+```
+[0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1
+ 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1]
+
+#**2. Самостоятельно реализуйте логистическую регрессию, без использования метода LogisticRegression из библиотеки. Можете использовать библиотеки pandas, numpy, math для реализации. Оформите в виде функции. *Оформите в виде класса с методами.**
+#**3. Реализуйте метод градиентного спуска. Обучите логистическую регрессию этим методом. Выберете и посчитайте метрику качества. Метрика должна быть одинакова для всех пунктов домашнего задания. Для упрощения сравнения выберете только одну метрику.**
+#**4. Повторите п. 3 для метода скользящего среднего (Root Mean Square Propagation, RMSProp).**
+#**5. Повторите п. 3 для ускоренного по Нестерову метода адаптивной оценки моментов (Nesterov–accelerated Adaptive Moment Estimation, Nadam).**
+
+```
+class MyLogReg():
+
+# Используем все признаки из X = irises.data
+    def theta(self, theta, X):
+        return theta[0] + theta[1] * X[:, 0] + theta[2] * X[:, 1] + theta[3] * X[:, 2] + theta[4] * X[:, 3]
+
+    def sigmoid(self, theta):
+        return 1./(1 + np.exp(-theta))
+
+    def predict(self, theta, X):
+        return self.sigmoid(self.theta(theta, X))
+
+    def loss_function(self, Y, sigmoid):
+        return np.sum(np.square(sigmoid - Y)) / (2 * len(sigmoid))
+       
+    def predict_grad(self, X, Y, epochs, rate, theta):
+        losses = []
+        for _ in range(epochs):
+            sigmoid = self.predict(theta, X)
+            loss = self.loss_function(Y, sigmoid)
+            losses.append(loss)
+            theta[0] = theta[0] - rate * np.sum(sigmoid - Y) / len(sigmoid)
+            theta[1] = theta[1] - rate * np.sum((sigmoid - Y) * X[:, 0])/len(sigmoid)
+            theta[2] = theta[2] - rate * np.sum((sigmoid - Y) * X[:, 1])/len(sigmoid)
+            theta[3] = theta[3] - rate * np.sum((sigmoid - Y) * X[:, 2])/len(sigmoid)
+            theta[4] = theta[4] - rate * np.sum((sigmoid - Y) * X[:, 3])/len(sigmoid)
+          
+        return [theta, losses[0], losses[len(losses) - 1], self.count_errors(X, Y, theta)] # чтобы отследить уменьшение функции потерь - вернем итоговые коэффициенты theta, первое и последнее значение loss, используем подсчет ошибок предсказания для метрики качества 
+
+    def predict_rmsprop(self, X, Y, epochs, rate, epsilon, gamma, theta): # определим квадрат градиента и бегущего среднего, эпсилон и гамма - произвольно подбираемые коэффициенты
+        
+        grad = np.zeros(5) # иницируем нулями массивы градиента и бегущего среднего
+        sq_grad = np.zeros(5)
+        losses = []
+        for _ in range(epochs):
+            sigmoid = self.predict(theta, X)
+            loss = self.loss_function(Y, sigmoid)
+            losses.append(loss)
+            grad[0] = np.sum(sigmoid - Y)/len(sigmoid)
+            grad[1] = np.sum((sigmoid - Y) * X[:, 0])/len(sigmoid)
+            grad[2] = np.sum((sigmoid - Y) * X[:, 1])/len(sigmoid)
+            grad[3] = np.sum((sigmoid - Y) * X[:, 2])/len(sigmoid)
+            grad[4] = np.sum((sigmoid - Y) * X[:, 3])/len(sigmoid)
+            sq_grad = gamma * sq_grad + (1 - gamma)  * grad ** 2
+            theta -= rate * grad / np.sqrt(sq_grad + epsilon)
+        return [theta, losses[0], losses[len(losses) - 1], self.count_errors(X, Y, theta)]
+
+     def predict_nadam(self, X, Y, epochs, rate, gamma, theta): # Определим экспоненциальное скользящее среднее, гамма - произвольно подбираемый коэффициент от 0 до 1, обычно близко к 0.9
+        vt = np.zeros(5) # инициируем нулями массивы экспоненциального скользящего среднего - текущее и предыдущее
+        vt_prev = np.zeros(5)
+        losses = []
+        for _ in range(epochs):
+            sigmoid = self.predict(theta, X)
+            loss = self.loss_function(Y, sigmoid)
+            losses.append(loss)
+            sigmoid = self.predict(theta - gamma * vt_prev, X)
+            vt[0] = (gamma * vt_prev[0] + rate * np.sum(sigmoid - Y))/len(sigmoid)
+            vt[1] = (gamma * vt_prev[1] + rate * np.sum((sigmoid - Y) * X[:, 0]))/len(sigmoid)
+            vt[2] = (gamma * vt_prev[2] + rate * np.sum((sigmoid - Y) * X[:, 1]))/len(sigmoid)
+            vt[3] = (gamma * vt_prev[3] + rate * np.sum((sigmoid - Y) * X[:, 2]))/len(sigmoid)
+            vt[4] = (gamma * vt_prev[4] + rate * np.sum((sigmoid - Y) * X[:, 3]))/len(sigmoid)
+            theta -= vt
+            vt_prev = vt
+        return [theta, losses[0], losses[len(losses) - 1], self.count_errors(X, Y, theta)]
+
+    def count_errors(self, X, Y, theta):
+        count = 0
+        for index, item in enumerate(np.around(self.predict(theta, X))):
+            # print(int(item), Y[index].item())
+            if int(item) != Y[index].item():
+                count += 1
+        return count
+```
+
+#случайный выбор theta для тестирования
+```
+theta = np.asarray([-0.37221469, -0.3897146,   1.11826103, -1.81180707, -1.2799002 ])
+rg = MyLogReg)
+start_time = datetime.now()
+print(rg.predict_grad(X, Y, 50000, 0.001, theta))
+print(datetime.now() - start_time)
+```
+[array([-1.49356576, -1.85876646, -0.83705399,  2.47340578,  2.08072563]), 0.2499957613795874, 0.02927782663823318, 3]
+
+#исходный массив theta изменен предыдущим методом по ссылке 
+```
+theta = [-0.37221469, -0.3897146,   1.11826103, -1.81180707, -1.2799002 ]
+start_time = datetime.now()
+print(rg.predict_rmsprop(X, Y, 50000, 0.01, 0.9999, 0.99999, theta))
+print(datetime.now() - start_time)
+```
+[array([-4.12039006, -3.59019217, -3.55884558,  5.38330486,  6.20968826]), 0.2499957613795874, 0.013747702466034802, 3]
+
+```
+theta = [-0.37221469, -0.3897146,   1.11826103, -1.81180707, -1.2799002 ]
+start_time = datetime.now()
+print(rg.predict_nadam(X, Y, 50000, 0.01, 0.9, theta))
+print(datetime.now() - start_time)
+```
+[array([-4.13738611, -3.59664927, -3.56921045,  5.39443819,  6.22876313]), 0.2499957613795874, 0.013728142819197065, 3]
+
+**6.Сравните значение метрик для реализованных методов оптимизации. Можно оформить в виде таблицы вида |метод|метрика|время работы| (время работы опционально). Напишите вывод.**
+
+#1.В процессе выполнения работы по обучению для реализации логистической регрессии расчетов, нужно уделить внимание подбору коэффициентов для скользящего среднего и Нестерова.
+#2.По полученным результатам делаем вывод, что время работы методов при похожих начальных условиях отличаются незначительно.
+#3.Что касается количества ошибок, то можно заметить, что оно незначительное.
