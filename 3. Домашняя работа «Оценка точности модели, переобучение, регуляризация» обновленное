@@ -1,0 +1,265 @@
+
+**Цель: закрепить знания о математическом смысле метрик TPR, FPR. Изучить построение ROC-кривой, графика Precision-Recall.**
+
+#Описание задания:
+#Решить задачу классификации при помощи обучения модели логистической регрессии. Целевая переменная — пол спортсмена. Качество модели оценивается путем подсчета метрик TPR, FPR и построения графиков ROC-кривой, Precision-Recall. 
+#Данные для обучения модели хранятся в файле athletes.csv, который можно найти в материалах к занятию.
+
+git commit -m '
+Этапы работы:
+1.Преобразуйте данные:
+a. проверьте наличие пропущенных значений. Преобразуйте/удалите пропуски по необходимости;
+b. закодируйте категориальные переменные числовыми значениями по необходимости.
+2.Разделите выборку на обучающее (80% данных) и тестовое (20% данных) подмножества.
+3.Постройте ROC-кривую с помощью функции roc_curve из библиотеки sklearn.metrics.
+4.Вычислите значение ROC-AUC метрики с помощью функции roc_auc_score из библиотеки sklearn.metrics.
+5.Реализуйте подсчет метрик TPR, FPR «вручную», без использования готовых функций из библиотеки sklearn.
+6.Постройте ROC-кривую с помощью вычисленных в п. 5 метрик. Объедините графики из п. 3 и п. 6 в один. Сравните, сделайте вывод.
+7.Постройте график Precision-Recall, используя метрики, посчитанные в п. 5.
+*Вычислите значение ROC-AUC метрики, используя метрики, посчитанные в п. 5.
+8.Сформулируйте выводы по проделанной работе:
+a) как по полученным графикам сделать вывод о качестве модели? Как вы оцениваете обученную модель исходя из подсчитанных метрик?
+b) *может ли ROC-кривая проходить ниже диагонали?'
+
+```
+import pandas as pd
+from sklearn.preprocessing import LabelEncoder
+from sklearn.model_selection import train_test_split, GridSearchCV
+import matplotlib.pyplot as plt
+from numpy import arange
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import roc_auc_score, roc_curve, precision_recall_curve
+```
+#1. Преобразуйте данные
+#a. проверьте наличие пропущенных значений. Преобразуйте/удалите пропуски по необходимости;
+#b. закодируйте категориальные переменные числовыми значениями по необходимости.
+
+```
+data = pd.read_csv("athletes.csv")
+data.info()
+```
+
+git commit -m '
+<class 'pandas.core.frame.DataFrame'>
+RangeIndex: 11538 entries, 0 to 11537
+Data columns (total 11 columns):
+ #   Column       Non-Null Count  Dtype  
+---  ------       --------------  -----  
+ 0   id           11538 non-null  int64  
+ 1   name         11538 non-null  object 
+ 2   nationality  11538 non-null  object 
+ 3   sex          11538 non-null  object 
+ 4   dob          11537 non-null  object 
+ 5   height       11208 non-null  float64
+ 6   weight       10879 non-null  float64
+ 7   sport        11538 non-null  object 
+ 8   gold         11538 non-null  int64  
+ 9   silver       11538 non-null  int64  
+ 10  bronze       11538 non-null  int64  
+dtypes: float64(2), int64(4), object(5)
+memory usage: 991.7+ KB'
+
+```
+data.head(15)
+```
+![](https://drive.google.com/file/d/1K1nSwYM0oJ95IA2Tv2pKif4-CPenMUTQ/view?usp=sharing)
+
+#Необходимо проверить атрибуты на пустые строки, по мере их обнаружения постепенно удаляем строки с пустыми значениями и проверим значение Non-Null count в выводе df.info()
+
+```
+print('Для height пустых строк ' + str( len( data[ pd.isnull( data['height'] ) ] ) ))
+print('Для weight пустых строк ' + str( len( data[ pd.isnull( data['weight'] ) ] ) ))
+print('Всего строк в наборе ' + str( len( data ) ))
+```
+"Получили:
+1. "height" - количество пустых строк: **330**;
+2. "weight" - количество пустых строк: **659**;
+Итого строк в наборе: **11538**"
+
+```
+data = data[ pd.isnull( data['height'] ) == 0 ]
+data = data[ pd.isnull( data['weight'] ) == 0 ]
+data.info()
+```
+
+git commit -m '
+<class 'pandas.core.frame.DataFrame'>
+Int64Index: 10858 entries, 0 to 11537
+Data columns (total 11 columns):
+ #   Column       Non-Null Count  Dtype  
+---  ------       --------------  -----  
+ 0   id           10858 non-null  int64  
+ 1   name         10858 non-null  object 
+ 2   nationality  10858 non-null  object 
+ 3   sex          10858 non-null  object 
+ 4   dob          10858 non-null  object 
+ 5   height       10858 non-null  float64
+ 6   weight       10858 non-null  float64
+ 7   sport        10858 non-null  object 
+ 8   gold         10858 non-null  int64  
+ 9   silver       10858 non-null  int64  
+ 10  bronze       10858 non-null  int64  
+dtypes: float64(2), int64(4), object(5)
+memory usage: 1017.9+ KB'
+
+#Результат вычислений показал, что во всех атрибутах непустые строки, значит, остальные пустые значения просто совпадали в строках.
+#Проверим уникальность значений для других полей.
+
+```
+print(len(data['nationality'].unique()))
+print(len(data['height'].unique()))
+print(len(data['weight'].unique()))
+print(len(data['sport'].unique()))
+```
+git commit -m '
+200
+82
+123
+27'
+
+```
+X = data[['height', 'weight', 'gold', 'silver', 'bronze']]
+X.head(5)
+```
+![](https://drive.google.com/file/d/1cp3EoRdJ1ZXnj_Ihr98dQ5ogaztWbl-0/view?usp=sharing)
+
+#**2.Разделите выборку на обучающее (80% данных) и тестовое (20% данных) подмножества.**
+
+#Базовый набор данных для модели, X определен выше:
+
+```
+le = LabelEncoder()
+le.fit(data['sex'])
+y = pd.Series(data = le.transform(data['sex']))
+y.head(5)
+```
+
+git commit -m '
+0    1
+1    0
+2    1
+3    1
+4    1
+dtype: int64'
+
+```
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
+```
+
+#**3.Постройте ROC-кривую с помощью функции sklearn.metrics. roc_curve.**
+
+#Произведем построение модели
+
+```
+model = LogisticRegression()
+model.fit(X_train, y_train)
+LogisticRegression()
+predictions = model.predict_proba(X_test)
+fpr, tpr, thresh = roc_curve(y_test, predictions[:,1])
+plt.figure(figsize=(12, 12))
+plt.plot(fpr, tpr)
+plt.title('ROC AUC', fontdict={'fontsize': 20})
+plt.xlabel('False Positive Rate', fontdict={'fontsize': 20})
+plt.ylabel('True Positive Rate', fontdict={'fontsize': 20})
+plt.show()
+```
+
+![](https://drive.google.com/file/d/1LtQuPc1KTpG43n6C9X2uGByxHBmHZD_o/view?usp=sharing)
+
+#**4.Вычислите значение ROC-AUC метрики с помощью функции sklearn.metrics.roc_auc_score.**
+```
+roc_auc_score(y_test, predictions[:, 1])
+```
+#0.8504375666840369
+
+#**5.Реализуйте подсчет метрик TPR, FPR «вручную», без использования готовых функций из библиотеки sklearn.**
+#**6.Постройте ROC-кривую с помощью вычисленных в п. 5 метрик: объедините графики из п. 3 и п. 6 в один. Сравните, сделайте вывод.**
+#**7.Постройте график Precision-Recall, используя метрики, посчитанные в п. 5.**
+#**8.*Вычислите значение ROC-AUC метрики, используя метрики, посчитанные в п. 5.**
+
+```
+thresholds = arange(0, 1, 0.1)
+#predictions определены выше
+fprs = []
+tprs = []
+prs = []
+res = []
+pr_custom = []
+for threshold in thresholds:
+    tp = 0 # True positive
+    fp = 0 # False positive
+    fn = 0 # False negative
+    tn = 0 # True negative
+    for predicted_prob, actual in zip( predictions[:, 1], y_test ):
+        if predicted_prob >= threshold:
+            predicted = 1
+        else:
+            predicted = 0
+
+        if predicted == 1:
+            if actual == 1:
+                tp += 1
+            else:
+                fp += 1
+
+        else:
+            if actual == 1:
+                fn += 1
+            else:
+                tn += 1
+    tpr2 = tp/(tp + fn)
+    fpr2 = fp/(fp + tn)
+    precision = tp/(tp + fp)
+    recall = tpr2 #по определению
+    fprs.append(fpr2)
+    tprs.append(tpr2)
+    prs.append(precision)
+    res.append(recall)
+plt.figure(figsize=(12, 12))
+plt.plot(fpr, tpr, color="red")
+plt.plot(fprs, tprs, color="blue")
+plt.title('ROC AUC', fontdict={'fontsize': 20})
+plt.xlabel('False Positive Rate', fontdict={'fontsize': 20})
+plt.ylabel('True Positive Rate', fontdict={'fontsize': 20})
+plt.show()
+```
+
+![](https://drive.google.com/file/d/1Hlrop9B75KCRDvF1zRaOLUAtSWCxCEB2/view?usp=sharing)
+
+```
+plt.figure(figsize=(12, 12))
+plt.plot(prs, res, color="red")
+plt.title('PR AUC', fontdict={'fontsize': 20})
+plt.xlabel('Precision', fontdict={'fontsize': 20})
+plt.ylabel('Recall', fontdict={'fontsize': 20})
+plt.show()
+```
+
+![](https://drive.google.com/file/d/1aPBkckTWgdtsLqemP9gxayJCUBR6ExT-/view?usp=sharing)
+
+```
+fprs.sort() #сортируем по возрастанию, чтобы считать от начала кривой
+tprs.sort()
+custom_roc_auc = 0 #кастомная метрика roc_auc - аналог roc_auc_score, очень приблизительно моделируем площадь фигуры как сумму фигур по шагам
+prev_fpr = 0
+prev_tpr = 0
+for index in range(len(fprs)):
+    if(index != 0):
+        custom_roc_auc += ((tprs[index] - prev_tpr) * (fprs[index] - prev_fpr) / 2) + (tprs[index] * (fprs[index] - prev_fpr))
+        prev_tpr = tprs[index]
+        prev_fpr = fprs[index]
+print(custom_roc_auc)
+```
+#0.9204733958944382
+
+#**9. Сформулируйте выводы по проделанной работе.**
+
+git commit -m '
+Сравнение расчетов графиков и метрик TPR, PFR (библиотечного и кастомного)  показывает, что отличия незначительны, так как применяется один и тот же принцип подсчета фактически.
+Было выявлено, что при увеличении числа шагов точность совпадения обеих метрик улучшается.'
+
+
+
+
+
+
