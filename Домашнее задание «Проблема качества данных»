@@ -1,0 +1,340 @@
+**Цель: применить на практике методы по оценке качества данных.**
+
+#Описание задания:
+#Проведите очистку данных на примере датасета с информацией о пассажирах корабля Титаник. Данные можно скачать по ссылке или найти в материалах к уроку. 
+На полученных данных обучите модель классификации, с целевым признаком Survived (1 – пассажир выжил, 0 – погиб). Обучите модель на необработанных данных и посчитайте метрику качества. 
+Проведите очистку данных. Обучите модель на данных после обработки, посчитайте метрику качества. Сравнить полученные результаты. Значение метрики должно улучшиться.
+
+git commit -m '
+Этапы работы:
+1.Получите и загрузите данные.
+2.Удалите все пропущенные значения и категориальные переменные. Обучите модель. Выберете и посчитайте метрику качества.
+3.Снова загрузите полные данные.
+4.Удалите признаки, которые логически не нужны для построения модели. Обоснуйте.
+5.Проверьте данные на наличие пропущенных значений.
+a) Посчитайте, какой процент данных будет потерян, если просто удалить пропуски.
+b) Заполните пропуски: средним значением; константой; классом, указывающим на то, что значение было пропущено; случайным числом. Для разных признаков используйте подходящий метод. 
+Можно не использовать все перечисленные методы.
+6.Категориальные переменные переведите в цифровые значения. Можно использовать pd.get_dummies, preprocessing.LabelEncoder. Старайтесь не использовать для этой задачи циклы.
+7.Проверьте данные на наличие выбросов.
+a) Удалите выбросы, если считаете это целесообразным. Обоснуйте.
+8.*Постройте 1-2 графика на выбор. Визуализация должна быть основана на исследуемых данных и быть полезной (из графика можно сделать вывод об особенностях датасета/класса/признака)
+9.*Попробуйте математически преобразовать признак Age.
+10.Обучите ту же модель, что в п. 2 на преобразованных данных. Посчитайте ту же, что в п. 2 метрику.
+11.Сформулируйте выводы по проделанной работе.
+a) Кратко опишите какие преобразования были сделаны и почему.
+b) Сравните метрики моделей из п. 2 и п. 10.
+c) Напишите свое мнение о целесообразности работы с данными при построении моделей машинного обучения.
+*Нужно ли аналогичным образом исследовать и дополнять действительно большие данные?'
+
+```
+import pandas as pd
+import numpy as np
+from sklearn.model_selection import train_test_split
+import matplotlib.pyplot as plt
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import roc_auc_score, roc_curve
+from sklearn.ensemble import IsolationForest
+```
+
+#1.Получите и загрузите данные
+
+```
+data = pd.read_csv("train.csv")
+data.info()
+```
+
+git commit -m '
+<class 'pandas.core.frame.DataFrame'>
+RangeIndex: 891 entries, 0 to 890
+Data columns (total 12 columns):
+ #   Column       Non-Null Count  Dtype  
+---  ------       --------------  -----  
+ 0   PassengerId  891 non-null    int64  
+ 1   Survived     891 non-null    int64  
+ 2   Pclass       891 non-null    int64  
+ 3   Name         891 non-null    object 
+ 4   Sex          891 non-null    object 
+ 5   Age          714 non-null    float64
+ 6   SibSp        891 non-null    int64  
+ 7   Parch        891 non-null    int64  
+ 8   Ticket       891 non-null    object 
+ 9   Fare         891 non-null    float64
+ 10  Cabin        204 non-null    object 
+ 11  Embarked     889 non-null    object 
+dtypes: float64(2), int64(5), object(5)
+memory usage: 83.7+ KB'
+
+```
+data.head(16)
+```
+![](https://drive.google.com/file/d/1mH7xo9FQx4RYRgt9Zf9QiJcFfLvEir6m/view?usp=sharing)
+
+#2.Удалите все пропущенные значения и категориальные переменные. Обучите модель. Выберите и посчитайте метрику качества.
+
+```
+data = data[['Pclass', 'Age', 'SibSp', 'Parch', 'Fare', 'Survived']]
+data = data[pd.isnull(data['Age']) == 0]
+X = data[['Pclass', 'Age', 'SibSp', 'Parch', 'Fare']]
+X.info()
+```
+
+git commit -m '
+<class 'pandas.core.frame.DataFrame'>
+Int64Index: 714 entries, 0 to 890
+Data columns (total 5 columns):
+ #   Column  Non-Null Count  Dtype  
+---  ------  --------------  -----  
+ 0   Pclass  714 non-null    int64  
+ 1   Age     714 non-null    float64
+ 2   SibSp   714 non-null    int64  
+ 3   Parch   714 non-null    int64  
+ 4   Fare    714 non-null    float64
+dtypes: float64(2), int64(3)
+memory usage: 33.5 KB'
+
+```
+y = data['Survived']
+y.head(5)
+```
+git commit -m '
+0    0
+1    1
+2    1
+3    1
+4    0
+Name: Survived, dtype: int64'
+
+```
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
+model = LogisticRegression()
+model.fit(X_train, y_train)
+predictions = model.predict_proba(X_test)
+fpr, tpr, thresh = roc_curve(y_test, predictions[:,1])
+plt.figure(figsize=(12, 12))
+plt.plot(fpr, tpr)
+plt.title('ROC AUC', fontdict={'fontsize': 20})
+plt.xlabel('False Positive Rate', fontdict={'fontsize': 20})
+plt.ylabel('True Positive Rate', fontdict={'fontsize': 20})
+plt.show()
+```
+
+![](https://drive.google.com/file/d/1onGklEBnRSr-32As80Jlj8cw3si7BkbB/view?usp=sharing)
+
+```
+roc_auc_score(y_test, predictions[:, 1])
+```
+
+#0.7051256873527102
+
+git commit -m '
+3.Снова загрузите полные данные.
+4.Удалите признаки, которые логически не нужны для построения модели. Обоснуйте.
+5.Проверьте данные на наличие пропущенных значений.
+a) Посчитайте, какой процент данных будет потерян, если просто удалить пропуски.
+b) Заполните пропуски: средним значением; константой; классом, указывающим на то, что значение было пропущено; случайным числом. Для разных признаков используйте подходящий метод. Можно не использовать все перечисленные методы.
+6.Категориальные переменные переведите в цифровые значения. Можно использовать pd.get_dummies, preprocessing.LabelEncoder. Старайтесь не использовать для этой задачи циклы.
+7.Проверьте данные на наличие выбросов.
+a) Удалите выбросы, если считаете это целесообразным. Обоснуйте.
+8.*Постройте 1-2 графика на выбор. Визуализация должна быть основана на исследуемых данных и быть полезной (из графика можно сделать вывод об особенностях датасета/класса/признака)
+9.*Попробуйте математически преобразовать признак Age.
+10.Обучите ту же модель, что в п. 2 на преобразованных данных. Посчитайте ту же, что в п. 2 метрику.'
+
+```
+data = pd.read_csv("train.csv")
+```
+```
+data = data[['Survived', 'Pclass', 'Sex', 'Age', 'SibSp', 'Parch', 'Fare', 'Embarked']]
+data.info()
+```
+
+git commit -m '
+<class 'pandas.core.frame.DataFrame'>
+RangeIndex: 891 entries, 0 to 890
+Data columns (total 8 columns):
+ #   Column    Non-Null Count  Dtype  
+---  ------    --------------  -----  
+ 0   Survived  891 non-null    int64  
+ 1   Pclass    891 non-null    int64  
+ 2   Sex       891 non-null    object 
+ 3   Age       714 non-null    float64
+ 4   SibSp     891 non-null    int64  
+ 5   Parch     891 non-null    int64  
+ 6   Fare      891 non-null    float64
+ 7   Embarked  889 non-null    object 
+dtypes: float64(2), int64(4), object(2)
+memory usage: 55.8+ KB'
+
+#Выявлены пропуски по параметрам: возраст и данные о спасении.
+
+```
+maxPassEmbarked = data.groupby('Embarked').count()['Fare']
+data.Embarked[data.Embarked.isnull()] = maxPassEmbarked[maxPassEmbarked == maxPassEmbarked.max()].index[0]
+data.info()
+```
+
+git commit -m '
+<class 'pandas.core.frame.DataFrame'>
+RangeIndex: 891 entries, 0 to 890
+Data columns (total 8 columns):
+ #   Column    Non-Null Count  Dtype  
+---  ------    --------------  -----  
+ 0   Survived  891 non-null    int64  
+ 1   Pclass    891 non-null    int64  
+ 2   Sex       891 non-null    object 
+ 3   Age       714 non-null    float64
+ 4   SibSp     891 non-null    int64  
+ 5   Parch     891 non-null    int64  
+ 6   Fare      891 non-null    float64
+ 7   Embarked  891 non-null    object 
+dtypes: float64(2), int64(4), object(2)
+memory usage: 55.8+ KB'
+
+#Выявлено, что возраст не заполнен в 20% случаев, заменим его медианным значением возраста из числа заполненных.
+
+```
+medianAge = data[data.Age.notnull()]['Age'].median()
+print(medianAge)
+```
+#28.0
+
+```
+data.Age[data.Age.isnull()] = medianAge
+data.info()
+```
+
+git commit -m '
+<class 'pandas.core.frame.DataFrame'>
+RangeIndex: 891 entries, 0 to 890
+Data columns (total 8 columns):
+ #   Column    Non-Null Count  Dtype  
+---  ------    --------------  -----  
+ 0   Survived  891 non-null    int64  
+ 1   Pclass    891 non-null    int64  
+ 2   Sex       891 non-null    object 
+ 3   Age       891 non-null    float64
+ 4   SibSp     891 non-null    int64  
+ 5   Parch     891 non-null    int64  
+ 6   Fare      891 non-null    float64
+ 7   Embarked  891 non-null    object 
+dtypes: float64(2), int64(4), object(2)
+memory usage: 55.8+ KB'
+
+
+#Преобразуем категориальные переменные
+
+```
+cat_columns = ['Sex', 'Embarked']
+data = pd.get_dummies(data, columns=cat_columns)
+data.info()
+```
+
+git commit -m '
+<class 'pandas.core.frame.DataFrame'>
+RangeIndex: 891 entries, 0 to 890
+Data columns (total 11 columns):
+ #   Column      Non-Null Count  Dtype  
+---  ------      --------------  -----  
+ 0   Survived    891 non-null    int64  
+ 1   Pclass      891 non-null    int64  
+ 2   Age         891 non-null    float64
+ 3   SibSp       891 non-null    int64  
+ 4   Parch       891 non-null    int64  
+ 5   Fare        891 non-null    float64
+ 6   Sex_female  891 non-null    uint8  
+ 7   Sex_male    891 non-null    uint8  
+ 8   Embarked_C  891 non-null    uint8  
+ 9   Embarked_Q  891 non-null    uint8  
+ 10  Embarked_S  891 non-null    uint8  
+dtypes: float64(2), int64(4), uint8(5)
+memory usage: 46.2 KB'
+
+```
+clf = IsolationForest( max_samples=891, random_state = 1, contamination= 'auto') #Используем метод IsolationForest для поиска выбросов
+preds = clf.fit_predict(data)
+len(np.where(preds == -1)[0])
+```
+#264
+
+#Данные отображают параметры, которые вполне могут быть взаимозависимыми (в той или иной мере) - например, Pclass (социальный статус), Fare(цена билета), это может приводить к таким ложным "выбросам". 
+#Для устранения можно удалить один из связанных параметров или заменить их каким-то комбинированным параметром. 
+
+```
+dt = pd.read_csv('train.csv')
+fig, axes = plt.subplots(ncols=4)
+dt.pivot_table('PassengerId', ['SibSp'], 'Survived', 'count').plot(ax=axes[0], title='SibSp')
+dt.pivot_table('PassengerId', ['Parch'], 'Survived', 'count').plot(ax=axes[1], title='Parch')
+dt.pivot_table('PassengerId', ['Fare'], 'Survived', 'count').plot(ax=axes[2], title='Fare')
+dt.pivot_table('PassengerId', ['Pclass'], 'Survived', 'count').plot(ax=axes[3], title='Pclass')
+```
+```
+<AxesSubplot:title={'center':'Pclass'}, xlabel='Pclass'>
+```
+
+![](https://drive.google.com/file/d/1onGklEBnRSr-32As80Jlj8cw3si7BkbB/view?usp=sharing)
+
+
+#Расчет показывает, что с ростом числа родственников вероятность спастись резко падает. 
+#Для людей с высокой стоимостью билета или высоким социальным статусом отношение числа спасшихся к числу погибших выше, чем у простых людей.
+#Преобразуем признак Age, определим три категории - до 14 лет, от 14 до 30 лет и старше 30 лет.
+
+```
+data.Age[data.Age < 14.0] = 1.0
+data.Age[(data.Age >= 14.0) & (data.Age < 30.0)] = 2.0
+data.Age[data.Age >= 30.0] = 3.0
+data.head(10)
+```
+
+![](https://drive.google.com/file/d/1orE4vkvvmJ8nBIDBlr3CB-3DEewnVd8d/view?usp=sharing)
+
+#Обучим модель и посчитаем метрику качества.
+
+```
+X = data.loc[:, data.columns != 'Survived']
+y = data['Survived']
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
+model = LogisticRegression()
+model.fit(X_train, y_train)
+predictions = model.predict_proba(X_test)
+fpr, tpr, thresh = roc_curve(y_test, predictions[:, 1])
+plt.figure(figsize=(12, 12))
+plt.plot(fpr, tpr)
+plt.title('ROC AUC', fontdict={'fontsize': 20})
+plt.xlabel('False Positive Rate', fontdict={'fontsize': 20})
+plt.ylabel('True Positive Rate', fontdict={'fontsize': 20})
+plt.show()
+```
+
+![](https://drive.google.com/file/d/1lJAVa0f9FIIqvicqqhUK5d5pgQbH7L6_/view?usp=sharing)
+
+```
+roc_auc_score(y_test, predictions[:, 1])
+```
+#0.8355176933158585
+
+
+#**Вывод:**
+#1.Удаление данных с пропусками приводит к значительной потере качества модели, что подтверждается сравнением метрик качества. 
+#2. Очистка данные от пропусков различными методоми замены пропусков на определенные значения, повысит качество модели, в частности, если данных для анализа не слишком много.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
