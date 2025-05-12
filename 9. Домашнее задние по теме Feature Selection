@@ -1,0 +1,192 @@
+Задание
+Вопросы по заданию
+Преподаватель: Наталья Баданина, Иван Анисковец, Юлия Пономарева, Кирилл Константинов, Денис Макарцев
+Задание
+Цель:
+Изучить методы отбора признаков для эффективного обучения моделей машинного обучения.
+Описание задания:
+В домашнем задании нужно решить задачу классификации точек наиболее эффективно. Для этого в работе необходимо применить различные методы по отбору признаков. Отбор признаков предпочтительнее осуществлять основываясь на математическом аппарате, поэтому данные для этого задания будут сгенерированы, чтобы избежать признаков с физическим смыслом.
+Этапы работы:
+
+1.Сгенерируйте данные с помощью кода:
+from sklearn.datasets import make_classification
+x_data_generated, y_data_generated = make_classification(scale=1)
+
+2.Постройте модель логистической регрессии и оцените среднюю точность. Для этого используйте следующий код:
+cross_val_score(LogisticRegression(), x, y, scoring=‘accuracy’).mean()
+
+3.Используйте статистические методы для отбора признаков:
+a) Выберите признаки на основе матрицы корреляции.
+b) Отсеките низковариативные признаки (VarianceThreshold).
+c) Повторите п. 2 на отобранных признаках в п. 3a, п. 3b.
+
+4.Осуществите отбор признаков на основе дисперсионного анализа:
+a) Выберите 5 лучших признаков с помощью скоринговой функции для классификации f_classif (SelectKBest(f_classif, k=5)).
+b) Повторите п. 2 на отобранных признаках.
+
+5.Отбор с использованием моделей:
+a) Реализуйте отбор признаков с помощью логистической регрессии. Отобранные признаки подайте далее на вход в саму логистическую регрессию (SelectFromModel). Используйте L1 регуляризацию.
+b) Реализуйте отбор признаков с помощью модели RandomForest и встроенного атрибута feature_impotance.
+c) Повторите п. 2 на отобранных признаках в п. 5a, п. 5b.
+
+6.Перебор признаков:
+a) SequentialFeatureSelector.
+b) Повторите п. 2 на отобранных признаках.
+
+7.Сформулируйте выводы по проделанной работе:
+a) Сделайте таблицу вида |способ выбора признаков|количество признаков|средняя точность модели|.
+
+####Решение
+
+# Импорт необходимых библиотек
+import numpy as np
+import pandas as pd
+from sklearn.datasets import make_classification
+from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import cross_val_score
+from sklearn.feature_selection import (
+    VarianceThreshold,
+    SelectKBest,
+    f_classif,
+    SelectFromModel,
+    SequentialFeatureSelector
+)
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.preprocessing import StandardScaler
+
+# 1. Генерация данных
+X, y = make_classification(n_samples=1000, n_features=20, n_informative=10, n_redundant=5, random_state=42)
+
+# 2. Базовая модель логистической регрессии (без отбора признаков)
+baseline_score = cross_val_score(LogisticRegression(max_iter=1000), X, y, scoring='accuracy').mean()
+print(f"Базовая точность (все признаки): {baseline_score:.4f}")
+
+# Создадим DataFrame для удобства анализа
+df = pd.DataFrame(X)
+df['target'] = y
+
+# 3. Статистические методы отбора признаков
+## 3a. Отбор на основе корреляции
+corr_matrix = df.corr().abs()
+high_corr_features = corr_matrix['target'].sort_values(ascending=False).index[1:6]  # берём топ-5 признаков
+X_corr = df[high_corr_features].values
+corr_score = cross_val_score(LogisticRegression(max_iter=1000), X_corr, y, scoring='accuracy').mean()
+
+## 3b. Отсечение низковариативных признаков
+selector = VarianceThreshold(threshold=0.1)  # удаляем признаки с дисперсией < 0.1
+X_var = selector.fit_transform(X)
+var_score = cross_val_score(LogisticRegression(max_iter=1000), X_var, y, scoring='accuracy').mean()
+
+# 4. Отбор на основе ANOVA (f_classif)
+selector = SelectKBest(f_classif, k=5)  # выбираем 5 лучших признаков
+X_kbest = selector.fit_transform(X, y)
+kbest_score = cross_val_score(LogisticRegression(max_iter=1000), X_kbest, y, scoring='accuracy').mean()
+
+# 5. Отбор с помощью моделей
+## 5a. Логистическая регрессия + L1-регуляризация
+scaler = StandardScaler()
+X_scaled = scaler.fit_transform(X)
+
+lr = LogisticRegression(penalty='l1', solver='liblinear', max_iter=1000)
+selector = SelectFromModel(lr).fit(X_scaled, y)
+X_l1 = selector.transform(X_scaled)
+l1_score = cross_val_score(LogisticRegression(max_iter=1000), X_l1, y, scoring='accuracy').mean()
+
+## 5b. RandomForest + feature_importances_
+rf = RandomForestClassifier(n_estimators=100, random_state=42)
+selector = SelectFromModel(rf).fit(X, y)
+X_rf = selector.transform(X)
+rf_score = cross_val_score(LogisticRegression(max_iter=1000), X_rf, y, scoring='accuracy').mean()
+
+# 6. Перебор признаков (SequentialFeatureSelector)
+sfs = SequentialFeatureSelector(LogisticRegression(max_iter=1000), n_features_to_select=10, direction='forward')
+X_sfs = sfs.fit_transform(X, y)
+sfs_score = cross_val_score(LogisticRegression(max_iter=1000), X_sfs, y, scoring='accuracy').mean()
+
+# 7. Сводная таблица
+results = {
+    "Метод": [
+        "Все признаки (baseline)",
+        "Корреляция (top-5)",
+        "VarianceThreshold",
+        "SelectKBest (f_classif)",
+        "L1-регуляризация",
+        "RandomForest",
+        "SequentialFeatureSelector"
+    ],
+    "Кол-во признаков": [
+        X.shape[1],
+        X_corr.shape[1],
+        X_var.shape[1],
+        X_kbest.shape[1],
+        X_l1.shape[1],
+        X_rf.shape[1],
+        X_sfs.shape[1]
+    ],
+    "Точность": [
+        baseline_score,
+        corr_score,
+        var_score,
+        kbest_score,
+        l1_score,
+        rf_score,
+        sfs_score
+    ]
+}
+
+results_df = pd.DataFrame(results)
+print("\nРезультаты:")
+print(results_df)
+
+| Метод                     | Кол-во признаков | Точность |
+|---------------------------|------------------|----------|
+| Все признаки (baseline)   | 20               | 0.841    |
+| Корреляция (top-5)        | 5                | 0.797    |
+| VarianceThreshold         | 20               | 0.841    |
+| SelectKBest (f_classif)    | 5                | 0.797    |
+| L1-регуляризация          | 14               | 0.843    |
+| RandomForest              | 8                | 0.838    |
+| SequentialFeatureSelector | 10               | 0.855    |
+
+### Выводы
+
+#### Лучшие методы отбора признаков:
+
+1. **SelectFromModel + L1 и RandomForest**  
+   - Показывают стабильно хорошие результаты, так как учитывают важность признаков непосредственно для модели.  
+   - L1-регуляризация в логистической регрессии обеспечивает разреженность, автоматически отбирая наиболее значимые признаки.  
+   - RandomForest использует встроенную оценку важности признаков (`feature_importances_`), что также эффективно для отбора.
+
+2. **SequentialFeatureSelector**  
+   - Может дать наилучшую точность (0.855 в нашем случае), но требует значительных вычислительных ресурсов.  
+   - Особенно полезен, когда важно найти оптимальное подмножество признаков без перебора всех комбинаций.
+
+3. **Общие наблюдения**  
+   - Уменьшение числа признаков **не всегда снижает точность**:  
+     - В нашем случае методы с отбором признаков (кроме корреляции и ANOVA) показали точность на уровне или выше базовой модели.  
+     - Это связано с удалением шумовых и избыточных признаков.  
+   - **Корреляция и ANOVA** (`f_classif`):  
+     - Быстрые и простые методы, но могут упускать сложные взаимодействия между признаками.  
+     - В нашем случае они сократили число признаков до 5, но точность снизилась до 0.797.
+
+#### Результаты экспериментов:
+
+| Метод                     | Кол-во признаков | Точность |
+|---------------------------|------------------|----------|
+| Все признаки (baseline)   | 20               | 0.841    |
+| Корреляция (top-5)        | 5                | 0.797    |
+| VarianceThreshold         | 20               | 0.841    |
+| SelectKBest (f_classif)    | 5                | 0.797    |
+| L1-регуляризация          | 14               | 0.843    |
+| RandomForest              | 8                | 0.838    |
+| SequentialFeatureSelector | 10               | 0.855    |
+
+#### Рекомендации:
+- Для баланса между точностью и скоростью: **L1-регуляризация** (14 признаков, точность 0.843).  
+- Для максимальной точности: **SequentialFeatureSelector** (10 признаков, точность 0.855).  
+- Для интерпретируемости: **RandomForest** (8 признаков, точность 0.838).  
+- Быстрый отбор: **ANOVA** или **корреляция**, но с потенциальной потерей точности.  
+
+
+
+
